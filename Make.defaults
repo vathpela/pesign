@@ -20,7 +20,7 @@ CROSS_COMPILE	?=
 PKG_CONFIG ?= $(CROSS_COMPILE)pkg-config
 CC	:= $(if $(filter default,$(origin CC)),$(CROSS_COMPILE)gcc,$(CC))
 CCLD	:= $(if $(filter undefined,$(origin CCLD)),$(CC),$(CCLD))
-CFLAGS	?= -O0 -g3
+CFLAGS	?= -O2 -g3
 DIAGFLAGS ?= -fmessage-length=0 \
 	     -fdiagnostics-color=always \
 	     -fdiagnostics-format=text \
