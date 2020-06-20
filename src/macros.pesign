@@ -57,7 +57,8 @@
                         -c %{__pesign_client_cert}			\\\
                         %{-i} %{-o} %{-e} %{-s} %{-C}			\
     else								\
-      %{_pesign} %{__pesign_token} -c %{__pesign_cert}			\\\
+      %{_pesign} %{?_pesign_args}					\\\
+                 %{__pesign_token} -c %{__pesign_cert}			\\\
                  --certdir ${_pesign_nssdir}				\\\
                  %{-i} %{-o} %{-e} %{-s} %{-C}				\
     fi									\
