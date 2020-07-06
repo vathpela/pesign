@@ -90,6 +90,7 @@ install :
 	$(INSTALL) -m 644 macros.pesign $(INSTALLROOT)/etc/rpm/
 	$(INSTALL) -d -m 755 $(INSTALLROOT)$(libexecdir)/pesign/
 	$(INSTALL) -m 750 pesign-authorize $(INSTALLROOT)$(libexecdir)/pesign/
+	$(INSTALL) -m 755 pesign-rpmbuild-helper $(INSTALLROOT)$(libexecdir)/pesign/
 	$(INSTALL) -d -m 700 $(INSTALLROOT)/etc/pesign
 	$(INSTALL) -m 600 pesign-users $(INSTALLROOT)/etc/pesign/users
 	$(INSTALL) -m 600 pesign-groups $(INSTALLROOT)/etc/pesign/groups

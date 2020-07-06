@@ -1,0 +1,163 @@
+#!/bin/sh
+
+set -eu
+set -x
+
+main() {
+	local target_cpu="${1}" && shift
+	local bin="${1}" && shift
+	local client="${1}" && shift
+
+	local cafile="" || :
+	local certfile="" || :
+	local certname="" || :
+
+	local certout=() || :
+	local sattrout=() || :
+	local input=() || :
+	local output=() || :
+	local client_token=() || :
+	local client_cert=() || :
+	local token=() || :
+	local cert=() || :
+	local rhelver=0 || :
+	local sign="" || :
+
+	local username="$(id -un)"
+
+	while [[ $# -ge 2 ]] ; do
+		case " ${1} " in
+		" --cafile ")
+			cafile="${2}"
+			;;
+		" --certfile ")
+			certfile="${2}"
+			;;
+		" --certout ")
+			certout[0]=-C
+			certout[1]="${2}"
+			;;
+		" --sattrout ")
+			sattrout[0]=-e
+			sattrout[1]="${2}"
+			;;
+		" --client-token ")
+			client_token[0]=-t
+			client_token[1]="${2}"
+			;;
+		" --client-cert ")
+			client_cert[0]=-c
+			client_cert[1]="${2}"
+			;;
+		" --token ")
+			token[0]=-t
+			token="${2}"
+			;;
+		" --cert ")
+			cert[0]=-c
+			cert[1]="${2}"
+			;;
+		" --certname ")
+			cert[0]=-c
+			cert[1]="${2}"
+			;;
+		" --in ")
+			input[0]=-i
+			input[1]="${2}"
+			;;
+		" --out ")
+			output[0]=-o
+			output[1]="${2}"
+			;;
+		" --rhelver ")
+			rhelver="${2}"
+			;;
+		*)
+			break
+			;;
+		esac
+		shift
+		shift
+	done
+	if [ $# -ge 1 -a "${1}" = --sign ] ; then
+		sign=-s
+		shift
+	fi
+
+	local nssdir=/etc/pki/pesign
+	if [ "${#cert[@]}" -eq 2 ] &&
+	   [ "${cert[1]}" == "Red Hat Test Certificate" ] ; then
+		nssdir=/etc/pki/pesign-rh-test
+	fi
+
+	if [ -x "${bin}" ] &&
+	   [ "${target_cpu}" != "x86_64" -a "${target_cpu}" != "aarch64" ] ; then
+		if [ -n "${input[*]}" -a -n "${output[*]}" ] ; then
+			mv -v "${input[1]}" "${output[1]}"
+		elif [ -n "${input[*]}" -a -n "${sattrout[*]}" ] ; then
+			touch "${sattrout[1]}"
+		fi
+
+		# if there's a 0-sized output file, delete it and error out
+		if [ ! -s "${output[1]}" ] ; then
+			if [ -e "${output[1]}" ] ; then
+				rm -f "${output[1]}"
+			fi
+			exit 1
+		fi
+		return 0
+	fi
+
+	local socket="" || :
+	if grep -q ID=fedora /etc/os-release && [ "${rhelver}" -lt 7 ] &&
+	   [ "${username}" = "kojibuilder" -o "${username}" = "mockbuilder" ] ; then
+		if [ -S /run/pesign/socket ] ; then
+			socket=/run/pesign/socket
+		elif [ -S /var/run/pesign/socket ]; then
+			socket=/var/run/pesign/socket
+		else
+			echo "Warning: no pesign socket even though user is ${username}" 1>&2
+			echo "Warning: if this is a non-scratch koji build, this is wrong" 1>&2
+			ls -ld /run/pesign 1>&2
+			ls -l /run/pesign/socket 1>&2
+			getfacl /run/pesign /run/pesign/socket 1>&2
+			ls -ld /var/run/pesign 1>&2
+			ls -l /var/run/pesign/socket 1>&2
+			getfacl /var/run/pesign /var/run/pesign/socket 1>&2
+		fi
+	fi
+
+	if [ "${rhelver}" -ge 7 ] ; then
+		nssdir=$(mktemp -p $PWD -d)
+		echo > ${nssdir}/pwfile
+		certutil -N -d ${nssdir} -f ${nssdir}/pwfile
+		certutil -A -n "ca" -t "CTu,CTu,CTu" -i "${cafile}" -d ${nssdir}
+		certutil -A -n "signer" -t "CTu,CTu,CTu" -i "${certfile}" -d ${nssdir}
+		sattrs="$(mktemp -p $PWD --suffix=.der)"
+		"${bin}" -E "${sattrs}" --certdir "${nssdir}" \
+			"${input[@]}" --force
+		rpm-sign --key "${cert[1]}" --rsadgstsign "${sattrs}"
+		"${bin}" -R "${sattrs}.sig" -I "${sattrs}" \
+			--certdir "${nssdir}" -c signer \
+			"${input[@]}" "${output[@]}"
+		rm -rf "${sattrs}" "${sattrs}.sig" "${nssdir}"
+	elif [ -n "${socket}" ] ; then
+		"${client}" "${client_token[@]}" "${client_cert[@]}"	\
+			"${sattrout[@]}" "${certout[@]}"		\
+			${sign} "${input[@]}" "${output[@]}"
+	else
+		"${bin}" --certdir "${nssdir}" "${token[@]}"		\
+			"${cert[@]}" ${sign} "${sattrout[@]}"		\
+			"${certout[@]}"	"${input[@]}" "${output[@]}"
+	fi
+
+	# if there's a 0-sized output file, delete it and error out
+	if [ "${#output[@]}" -eq 2 ] && ! [ -s "${output[1]}" ] ; then
+		if [ -e "${output[1]}" ] ; then
+			rm -f "${output[1]}"
+		fi
+		exit 1
+	fi
+}
+
+main "${@}"
