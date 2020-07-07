@@ -110,7 +110,7 @@ main() {
 
 	local socket="" || :
 	if grep -q ID=fedora /etc/os-release && [ "${rhelver}" -lt 7 ] &&
-	   [ "${username}" = "kojibuilder" -o "${username}" = "mockbuilder" ] ; then
+	   [ "${username}" = "kojibuilder" -o "${username}" = "mockbuild" ] ; then
 		if [ -S /run/pesign/socket ] ; then
 			socket=/run/pesign/socket
 		elif [ -S /var/run/pesign/socket ]; then
